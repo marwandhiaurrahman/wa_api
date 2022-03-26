@@ -51,19 +51,20 @@ const client = new Client({
 
 client.initialize();
 
-// client.on('authenticated', (session) => {
-//   console.log('AUTHENTICATED', session);
-//   sessionCfg = session;
-//   fs.writeFileSync(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
-//     if (err) {
-//       return console.log(err);
-//     }
-//   });
-// });
+client.on('authenticated', (session) => {
+  console.log('AUTHENTICATED', session);
+  sessionCfg = session;
+  fs.writeFileSync(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
+    if (err) {
+      return console.log(err);
+    }
+  });
+});
 
 // Socket.io
 io.on('connection', function (socket) {
   socket.emit('message', 'Connecting...');
+
   client.on('qr', (qr) => {
     console.log('QR RECEIVED', qr);
     qrcode.toDataURL(qr, (err, url) => {
@@ -101,12 +102,10 @@ io.on('connection', function (socket) {
   });
 });
 
-
 const checkRegisteredNumber = async function (number) {
   const isRegistered = await client.isRegisteredUser(number);
   return isRegistered;
 }
-
 // Send message
 client.on('message', message => {
   console.log(message);
