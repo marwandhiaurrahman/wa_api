@@ -1,4 +1,4 @@
-const { Client } = require('whatsapp-web.js');
+const { Client, MessageMedia } = require('whatsapp-web.js');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const socketIO = require('socket.io');
@@ -6,6 +6,8 @@ const qrcode = require('qrcode');
 const http = require('http');
 const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
+const axios = require('axios');
+const mime = require('mime-types');
 // const { status } = require('express/lib/response');
 
 const app = express();
@@ -106,31 +108,41 @@ const checkRegisteredNumber = async function (number) {
   const isRegistered = await client.isRegisteredUser(number);
   return isRegistered;
 }
-// Send message
+
+// Read message
 client.on('message', message => {
-  console.log(message);
-  if (message.body == 'ping') {
-    message.reply('pong');
+  const urlWebhook = 'https://webhook.site/92a80591-443c-4a89-8ca8-19dc1b101c80';
+  if (message.type == 'chat') {
+    axios.post(urlWebhook, {
+      message
+    }).then(function () {
+      console.log('Message sent!' + message.id.id);
+    })
+      .catch(function (error) {
+        console.log('Error sending message: ', error);
+      });
   }
-  else {
-    message.reply(message.body);
-  }
+  // if (message.body == 'ping') {
+  //   message.reply('pong');
+  // }
+  // else {
+  //   message.reply(message.body);
+  // }
 });
 
+// Send message
 app.post('/send-message', [
   body('number').notEmpty(),
   body('message').notEmpty(),
 ], async (req, res) => {
   const errors = validationResult(req).formatWith(({ msg }) => msg);
-
-  if (!errors.isEmpty()) {
-    return res.status(422).json({ errors: errors.mapped() });
-  }
-
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
   const isRegisteredNumber = await checkRegisteredNumber(number);
 
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.mapped() });
+  }
   if (!isRegisteredNumber) {
     return res.status(422).json({ errors: { number: 'Number is not registered' } });
   }
@@ -144,6 +156,54 @@ app.post('/send-message', [
       res.send(error);
     }
   );
+});
+
+// Send media
+app.post('/send-media', [
+  body('number').notEmpty(),
+  body('caption').notEmpty(),
+  body('file').notEmpty(),
+], async (req, res) => {
+  const errors = validationResult(req).formatWith(({ msg }) => msg);
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileUrl = req.body.file;
+  const isRegisteredNumber = await checkRegisteredNumber(number);
+
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.mapped() });
+  }
+  if (!isRegisteredNumber) {
+    return res.status(422).json({ errors: { number: 'Number is not registered' } });
+  }
+
+  // const media = MessageMedia.fromFilePath('./info poli.png');
+
+  // const file = req.files.file;
+  // const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
+
+  let mimetype;
+  const attachment = await axios.get(fileUrl, {
+    responseType: 'arraybuffer'
+  }).then(response => {
+    mimetype = response.headers['content-type'];
+    return response.data.toString('base64');
+  });
+  const media = new MessageMedia(mimetype, attachment, 'Media');
+
+  client.sendMessage(number, media, {
+    caption: caption
+  }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
 });
 
 server.listen(8000, function () {
