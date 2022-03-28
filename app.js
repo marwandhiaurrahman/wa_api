@@ -1,4 +1,4 @@
-const { Client, MessageMedia } = require('whatsapp-web.js');
+const { Client, MessageMedia, Buttons } = require('whatsapp-web.js');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const socketIO = require('socket.io');
@@ -8,7 +8,7 @@ const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
 const axios = require('axios');
 const mime = require('mime-types');
-// const { status } = require('express/lib/response');
+const port = process.env.PORT || 8000;
 
 const app = express();
 const server = http.createServer(app);
@@ -18,9 +18,6 @@ app.use(express.json());
 app.use(express.urlencoded({
   extended: true
 }));
-// app.use(fileUpload({
-//   debug: true
-// }));
 
 app.get('/', (req, res) => {
   res.sendFile('index.html', {
@@ -52,16 +49,6 @@ const client = new Client({
 });
 
 client.initialize();
-
-client.on('authenticated', (session) => {
-  console.log('AUTHENTICATED', session);
-  sessionCfg = session;
-  fs.writeFileSync(SESSION_FILE_PATH, JSON.stringify(session), function (err) {
-    if (err) {
-      return console.log(err);
-    }
-  });
-});
 
 // Socket.io
 io.on('connection', function (socket) {
@@ -112,7 +99,7 @@ const checkRegisteredNumber = async function (number) {
 // Read message
 client.on('message', message => {
   const urlWebhook = 'https://webhook.site/92a80591-443c-4a89-8ca8-19dc1b101c80';
-  if (message.type == 'chat') {
+  if (message.type == 'chat' || message.type == 'buttons_response') {
     axios.post(urlWebhook, {
       message
     }).then(function () {
@@ -122,14 +109,7 @@ client.on('message', message => {
         console.log('Error sending message: ', error);
       });
   }
-  // if (message.body == 'ping') {
-  //   message.reply('pong');
-  // }
-  // else {
-  //   message.reply(message.body);
-  // }
 });
-
 // Send message
 app.post('/send-message', [
   body('number').notEmpty(),
@@ -157,7 +137,6 @@ app.post('/send-message', [
     }
   );
 });
-
 // Send media
 app.post('/send-media', [
   body('number').notEmpty(),
@@ -205,7 +184,43 @@ app.post('/send-media', [
     });
   });
 });
+// Send button
+app.post('/send-button', [
+  body('number').notEmpty(),
+  body('message').notEmpty(),
+  body('button').notEmpty(),
+], async (req, res) => {
+  const errors = validationResult(req).formatWith(({ msg }) => msg);
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
+  const title = req.body.title;
+  const footer = req.body.footer;
+  // const button_body = ;
 
-server.listen(8000, function () {
-  console.log('listening on 8000');
+  const isRegisteredNumber = await checkRegisteredNumber(number);
+
+  if (!errors.isEmpty()) {
+    return res.status(422).json({ errors: errors.mapped() });
+  }
+  if (!isRegisteredNumber) {
+    return res.status(422).json({ errors: { number: 'Number is not registered' } });
+  }
+
+  let button = new Buttons('Button body', [{ body: 'Button' }], 'title', 'footer');
+  client.sendMessage(number, button)
+    .then(response => {
+      res.status(200).json({
+        status: true,
+        response: response
+      });
+    }).catch(err => {
+      res.status(500).json({
+        status: false,
+        response: err
+      });
+    });
+});
+
+server.listen(port, function () {
+  console.log('App running on http://127.0.0.1:' + port);
 });
