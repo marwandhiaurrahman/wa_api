@@ -108,10 +108,16 @@ client.on('message', message => {
       .catch(function (error) {
         console.log('Error sending message: ', error);
       });
+
+    if (msg.body == '!ping') {
+      msg.reply('pong');
+    } else {
+      msg.reply('ping');
+    }
   }
 });
 // Send message
-app.post('/send-message', [
+app.post('/send_message', [
   body('number').notEmpty(),
   body('message').notEmpty(),
 ], async (req, res) => {
@@ -138,7 +144,7 @@ app.post('/send-message', [
   );
 });
 // Send media
-app.post('/send-media', [
+app.post('/send_media', [
   body('number').notEmpty(),
   body('caption').notEmpty(),
   body('file').notEmpty(),
@@ -185,7 +191,7 @@ app.post('/send-media', [
   });
 });
 // Send button
-app.post('/send-button', [
+app.post('/send_button', [
   body('number').notEmpty(),
   body('message').notEmpty(),
   body('button').notEmpty(),
