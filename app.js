@@ -108,12 +108,11 @@ client.on('message', message => {
       .catch(function (error) {
         console.log('Error sending message: ', error);
       });
-
-    if (msg.body == '!ping') {
-      msg.reply('pong');
-    } else {
-      msg.reply('ping');
-    }
+  }
+  if (message.body == 'ping') {
+    message.reply('pong');
+  } else {
+    message.reply('ping');
   }
 });
 // Send message
